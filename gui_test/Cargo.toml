@@ -1,0 +1,17 @@
+[package]
+name = "gui_test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# For simplified error handling (use anyhow::Result)
+anyhow = "1.0"
+
+# eframe is the main framework for creating native applications
+# with egui (use eframe::egui)
+eframe = "0.33.2"
+
+# egui is the immediate-mode GUI library itself,
+# often used as a direct dependency for accessing various
+# widgets and types (use egui::{Button, Color32, RichText, Ui})
+egui = "0.33.2"
