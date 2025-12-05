@@ -1,1 +1,54 @@
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.00s
+   0.004578583s  INFO prepare_target{force=false package_id=ownership_test v0.1.0 (/Users/ctamayo/myRustLearning/ownership_test) target="ownership_test"}: cargo::core::compiler::fingerprint: fingerprint error for ownership_test v0.1.0 (/Users/ctamayo/myRustLearning/ownership_test)/Check { test: false }/TargetInner { name: "ownership_test", doc: true, ..: with_path("/Users/ctamayo/myRustLearning/ownership_test/src/main.rs", Edition2024) }
+   0.004601125s  INFO prepare_target{force=false package_id=ownership_test v0.1.0 (/Users/ctamayo/myRustLearning/ownership_test) target="ownership_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/ctamayo/myRustLearning/ownership_test/target/debug/.fingerprint/ownership_test-7b2ff19931eae6a8/bin-ownership_test`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+   0.006811875s  INFO prepare_target{force=false package_id=ownership_test v0.1.0 (/Users/ctamayo/myRustLearning/ownership_test) target="ownership_test"}: cargo::core::compiler::fingerprint: fingerprint error for ownership_test v0.1.0 (/Users/ctamayo/myRustLearning/ownership_test)/Check { test: true }/TargetInner { name: "ownership_test", doc: true, ..: with_path("/Users/ctamayo/myRustLearning/ownership_test/src/main.rs", Edition2024) }
+   0.006818125s  INFO prepare_target{force=false package_id=ownership_test v0.1.0 (/Users/ctamayo/myRustLearning/ownership_test) target="ownership_test"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/ctamayo/myRustLearning/ownership_test/target/debug/.fingerprint/ownership_test-71445bcc85330bd6/test-bin-ownership_test`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: std::backtrace::Backtrace::create
+   1: std::backtrace::Backtrace::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_ws
+   9: cargo::ops::cargo_compile::compile_with_exec
+  10: cargo::ops::cargo_compile::compile
+  11: cargo::commands::check::exec
+  12: <cargo::cli::Exec>::exec
+  13: cargo::main
+  14: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  15: std::rt::lang_start::<()>::{closure#0}
+  16: std::rt::lang_start_internal
+  17: _main
+    Checking ownership_test v0.1.0 (/Users/ctamayo/myRustLearning/ownership_test)
+error: could not compile `ownership_test` (bin "ownership_test" test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `ownership_test` (bin "ownership_test") due to 1 previous error
