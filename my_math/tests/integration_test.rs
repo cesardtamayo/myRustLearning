@@ -1,4 +1,4 @@
-use my_math::math::*;
+use my_math::*;
 
 #[test]
 fn adding_positives() {
