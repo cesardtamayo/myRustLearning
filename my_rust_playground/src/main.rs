@@ -1,4 +1,4 @@
-use my_math::math::*;
+use my_rust_playground::math::*;
 
 fn main() {
     // BASIC OWNERSHIP:

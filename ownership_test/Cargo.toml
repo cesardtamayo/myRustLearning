@@ -1,7 +1,0 @@
-[package]
-name = "ownership_test"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-my_math = { version = "0.1.0", path = "../my_math" }
