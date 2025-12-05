@@ -1,5 +1,5 @@
 [package]
-name = "my_math"
+name = "my_rust_playground"
 version = "0.1.0"
 edition = "2024"
 

@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "my_math"
+name = "my_rust_playground"
 version = "0.1.0"
