@@ -3,6 +3,7 @@ use eframe::egui;
 use egui::{Button, Color32, RichText, TextEdit, Ui};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use serialport::{self, SerialPortInfo};
 use std::thread;
 
 // 1. Define the static variable, protected by a Mutex.
@@ -14,7 +15,17 @@ lazy_static! {
 // Assume this function runs your device scanning logic
 pub fn scan_devices() {
     // 1. Placeholder for your actual slow scan logic
-    let results: String = list_usb_devices().expect("Failed to scan devices");
+    let mut results: String = String::new();
+    match list_available_serial_ports() {
+        Ok(port_list) => {
+            results.push_str("Available Serial Ports:\n");
+            for port in port_list {
+                results.push_str(&format!("- {}\n", port));
+            }
+        }
+        Err(e) => eprintln!("Error: {}", e),
+    }
+    // let results: String = list_usb_devices().expect("Failed to scan devices");
 
     // 2. Lock and update the shared static variable
     let mut data = crate::DEVICE_SCAN_OUTPUT.lock();
@@ -50,6 +61,35 @@ enum AppState {
     #[default]
     InitialState,
     // ScanningDevices,
+}
+
+pub fn list_available_serial_ports() -> Result<Vec<String>, String> {
+    // 1. Call the function to get all available serial ports.
+    let ports = match serialport::available_ports() {
+        Ok(p) => p,
+        Err(e) => return Err(format!("Failed to list ports: {}", e)),
+    };
+
+    // 2. Process the list to extract the port names and specific details.
+    if ports.is_empty() {
+        return Ok(vec!["No serial ports found.".to_string()]);
+    }
+
+    let port_names: Vec<String> = ports
+        .into_iter()
+        .map(|p: SerialPortInfo| {
+            // Optional: Include device information if it's a USB port
+            let details = match p.port_type {
+                serialport::SerialPortType::UsbPort(usb_info) => {
+                    format!(" (USB VID:{:04x} PID:{:04x})", usb_info.vid, usb_info.pid)
+                }
+                _ => String::new(),
+            };
+            format!("{}{}", p.port_name, details)
+        })
+        .collect();
+
+    Ok(port_names)
 }
 
 fn main() {
@@ -94,60 +134,6 @@ fn show_home_screen(app: &mut EguiApp, ctx: &egui::Context) -> Result<()> {
     Ok(())
 }
 
-use rusb::{Device, DeviceList, UsbContext};
-
-pub fn list_usb_devices() -> rusb::Result<String> {
-    // 1. Initialize a mutable String to collect all output.
-    let mut output = String::new();
-
-    let context = rusb::Context::new()?;
-    let devices: DeviceList<rusb::Context> = context.devices()?;
-
-    // 2. Use format! (or writeln! with a separate String buffer) instead of println!
-    let header = format!("🔎 Found {} USB Devices:\n", devices.len());
-    output.push_str(&header);
-
-    // Iterate over the devices
-    for device in devices.iter() {
-        let device_desc = device.device_descriptor()?;
-
-        // 3. Use format! to create the line string
-        let line = format!(
-            "  - Bus {:03} Address {:03} | ID {:04x}:{:04x}\n",
-            device.bus_number(),
-            device.address(),
-            device_desc.vendor_id(),
-            device_desc.product_id()
-        );
-
-        // 4. Append the formatted line to the output String
-        output.push_str(&line);
-    }
-
-    // 5. Return the collected String wrapped in Ok() on success.
-    // The error type is automatically inferred as rusb::Error based on the '?' operator.
-    Ok(output)
-}
-
-fn list_serial_ports() -> serialport::Result<()> {
-    let ports = serialport::available_ports()?;
-
-    println!("📡 Found {} Serial Ports:", ports.len());
-
-    for p in ports {
-        println!("  - Port Name: {}", p.port_name);
-
-        // You can check the port type to see if it's USB/Bluetooth, etc.
-        match p.port_type {
-            serialport::SerialPortType::UsbPort(usb) => {
-                println!("    > USB VID/PID: {:04x}:{:04x}", usb.vid, usb.pid);
-            }
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
 fn get_home_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
     ui.heading(RichText::new(APP_NAME).size(HEADING_FONT_SIZE).strong());
     ui.add_space(BIGGER_SPACING_SIZE);
@@ -184,3 +170,38 @@ fn get_home_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
 
     Ok(())
 }
+
+// use rusb::{Device, DeviceList, UsbContext};
+
+// pub fn list_usb_devices() -> rusb::Result<String> {
+//     // 1. Initialize a mutable String to collect all output.
+//     let mut output = String::new();
+
+//     let context = rusb::Context::new()?;
+//     let devices: DeviceList<rusb::Context> = context.devices()?;
+
+//     // 2. Use format! (or writeln! with a separate String buffer) instead of println!
+//     let header = format!("🔎 Found {} USB Devices:\n", devices.len());
+//     output.push_str(&header);
+
+//     // Iterate over the devices
+//     for device in devices.iter() {
+//         let device_desc = device.device_descriptor()?;
+
+//         // 3. Use format! to create the line string
+//         let line = format!(
+//             "  - Bus {:03} Address {:03} | ID {:04x}:{:04x}\n",
+//             device.bus_number(),
+//             device.address(),
+//             device_desc.vendor_id(),
+//             device_desc.product_id()
+//         );
+
+//         // 4. Append the formatted line to the output String
+//         output.push_str(&line);
+//     }
+
+//     // 5. Return the collected String wrapped in Ok() on success.
+//     // The error type is automatically inferred as rusb::Error based on the '?' operator.
+//     Ok(output)
+// }
