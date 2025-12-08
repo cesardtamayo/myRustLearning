@@ -3,8 +3,105 @@ use eframe::egui;
 use egui::{Button, Color32, RichText, TextEdit, Ui};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use serialport::{self, SerialPortInfo};
+use serialport::{self, SerialPort, SerialPortInfo};
 use std::thread;
+
+use std::io::{self, BufRead, BufReader, Read, Write}; // Need BufReader and BufRead for read_until
+
+use std::time::Duration; // Need to import Read trait for the read_exact method
+
+const PORT_NAME: &str = "/dev/cu.usbserial-0001"; // Your device's port
+const BAUD_RATE: u32 = 115200;
+const SERIAL_TIMEOUT_MS: u64 = 3000;
+
+fn open_serial_port(port_name: &str, baud_rate: u32) -> serialport::Result<Box<dyn SerialPort>> {
+    let port = serialport::new(port_name, baud_rate)
+        .timeout(Duration::from_millis(SERIAL_TIMEOUT_MS))
+        .open()?; // The '?' operator returns the error if the port can't be opened
+
+    Ok(port)
+}
+
+// Sets the maximum expected response size. Adjust this based on your device.
+const MAX_RESPONSE_SIZE: usize = 256;
+
+pub fn send_and_receive_serial_message(
+    mut port: Box<dyn SerialPort>,
+    message: &str,
+) -> serialport::Result<String> {
+    // --- 1. PREPARE AND SEND THE MESSAGE ---
+
+    // Use format! to include common command terminators (\r\n)
+    let message_with_terminator = format!("{}\r\n", message);
+    let bytes_to_send = message_with_terminator.as_bytes();
+
+    println!("Attempting to send: '{}'", message);
+
+    // Write the byte slice to the serial port
+    port.write(bytes_to_send)?;
+
+    // --- 2. WAIT FOR AND READ THE RESPONSE ---
+
+    // Initialize a buffer to hold the incoming bytes.
+    // let mut read_buffer: Vec<u8> = vec![0; MAX_RESPONSE_SIZE];
+
+    let mut reader = BufReader::new(&mut port);
+    let mut read_buffer: Vec<u8> = Vec::new();
+
+    // 3b. Read until the device sends a newline character (b'\n')
+    let bytes_read = match reader.read_until(b'\n', &mut read_buffer) {
+        Ok(0) => {
+            return Err(serialport::Error::new(
+                serialport::ErrorKind::NoDevice,
+                "Connection closed or device sent no data.",
+            ));
+        }
+        Ok(t) => t,
+        Err(e) => {
+            // Map standard I/O errors (other than timeout) to serialport::Error
+            return Err(serialport::Error::new(
+                serialport::ErrorKind::Io(e.kind()),
+                format!("Error during read operation: {}", e),
+            ));
+        }
+    };
+    // let bytes_read = match port.read(&mut read_buffer) {
+    //     Ok(t) => t,
+    //     Err(e) => {
+    //         return Err(serialport::Error::new(
+    //             // 1. Use the 'Io' variant from the serialport crate
+    //             serialport::ErrorKind::Io(
+    //                 // 2. Pass the correct standard library error kind
+    //                 io::ErrorKind::InvalidData,
+    //             ),
+    //             format!("Error reading response: {}", e),
+    //         ));
+    //     }
+    // };
+
+    println!("Received {} bytes in response.", bytes_read);
+
+    // --- 3. CONVERT BYTES TO STRING ---
+
+    // Convert the received bytes (up to bytes_read) into a UTF-8 String.
+    let received_bytes = &read_buffer[..bytes_read];
+
+    // Attempt to convert the received byte slice into a readable string
+    match String::from_utf8(received_bytes.to_vec()) {
+        Ok(s) => Ok(s.trim().to_string()), // Trim whitespace/newlines and return
+        Err(e) => {
+            // Return an error if the received data is not valid UTF-8
+            Err(serialport::Error::new(
+                // 1. Use the 'Io' variant from the serialport crate
+                serialport::ErrorKind::Io(
+                    // 2. Pass the correct standard library error kind
+                    io::ErrorKind::InvalidData,
+                ),
+                format!("Response data was not valid UTF-8: {}", e),
+            ))
+        }
+    }
+}
 
 // 1. Define the static variable, protected by a Mutex.
 lazy_static! {
@@ -60,7 +157,6 @@ struct EguiApp {
 enum AppState {
     #[default]
     InitialState,
-    // ScanningDevices,
 }
 
 pub fn list_available_serial_ports() -> Result<Vec<String>, String> {
@@ -93,17 +189,29 @@ pub fn list_available_serial_ports() -> Result<Vec<String>, String> {
 }
 
 fn main() {
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size(egui::vec2(WINDOW_WIDTH, WINDOW_HEIGHT)),
-        ..Default::default()
-    };
-    eframe::run_native(
-        APP_NAME,
-        options,
-        Box::new(|cc| Ok(Box::new(EguiApp::new(cc)))),
-    )
-    .expect("Failed to app");
+    // let options = eframe::NativeOptions {
+    //     viewport: egui::ViewportBuilder::default()
+    //         .with_inner_size(egui::vec2(WINDOW_WIDTH, WINDOW_HEIGHT)),
+    //     ..Default::default()
+    // };
+    // eframe::run_native(
+    //     APP_NAME,
+    //     options,
+    //     Box::new(|cc| Ok(Box::new(EguiApp::new(cc)))),
+    // )
+    // .expect("Failed to app");
+    let message_to_send = "m ver";
+    match open_serial_port(PORT_NAME, BAUD_RATE) {
+        Ok(serial_port) => {
+            let serial_response =
+                match send_and_receive_serial_message(serial_port, message_to_send) {
+                    Ok(response) => response,
+                    Err(err) => format!("Error: {}", err),
+                };
+            println!("Serial Response: {}", serial_response);
+        }
+        Err(err) => println!("Error opening serial port: {}", err),
+    }
 }
 
 impl EguiApp {
