@@ -15,3 +15,8 @@ eframe = "0.33.2"
 # often used as a direct dependency for accessing various
 # widgets and types (use egui::{Button, Color32, RichText, Ui})
 egui = "0.33.2"
+
+rusb = "0.9"
+serialport = "4.2"
+lazy_static = "1.4" # Or use once_cell if preferred
+parking_lot = "0.12" # A faster, non-standard Mutex, often preferred over std::sync::Mutex

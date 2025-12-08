@@ -1,7 +1,37 @@
 use anyhow::Result;
 use eframe::egui;
-use egui::{Button, Color32, RichText, Ui};
+use egui::{Button, Color32, RichText, TextEdit, Ui};
+use lazy_static::lazy_static;
+use parking_lot::Mutex;
+use std::thread;
 
+// 1. Define the static variable, protected by a Mutex.
+lazy_static! {
+    pub static ref DEVICE_SCAN_OUTPUT: Mutex<String> =
+        Mutex::new(String::from("Device scan has not run yet..."));
+}
+
+// Assume this function runs your device scanning logic
+pub fn scan_devices() {
+    // 1. Placeholder for your actual slow scan logic
+    let results: String = list_usb_devices().expect("Failed to scan devices");
+
+    // 2. Lock and update the shared static variable
+    let mut data = crate::DEVICE_SCAN_OUTPUT.lock();
+    *data = results;
+
+    // The lock is released automatically here
+    println!("Device scan completed");
+}
+
+/*
+ *
+ * Find connected taser 10 by sending "m_ver" to all connected devices.
+ * The T10 will return "mayor.minor.patch" string.
+ *
+*/
+
+const APP_NAME: &str = "My First Rust App";
 const WINDOW_WIDTH: f32 = 400.0;
 const WINDOW_HEIGHT: f32 = 400.0;
 const BUTTON_SIZE: f32 = 18.0;
@@ -18,8 +48,8 @@ struct EguiApp {
 #[derive(Default, Debug, PartialEq, Eq)]
 enum AppState {
     #[default]
-    SomeState,
-    SomeOtherState,
+    InitialState,
+    // ScanningDevices,
 }
 
 fn main() {
@@ -29,7 +59,7 @@ fn main() {
         ..Default::default()
     };
     eframe::run_native(
-        "My-Rust-App",
+        APP_NAME,
         options,
         Box::new(|cc| Ok(Box::new(EguiApp::new(cc)))),
     )
@@ -47,8 +77,8 @@ impl EguiApp {
 impl eframe::App for EguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let result = match self.state {
-            AppState::SomeState => show_some_screen(self, ctx),
-            AppState::SomeOtherState => show_some_other_screen(self, ctx),
+            AppState::InitialState => show_home_screen(self, ctx),
+            // AppState::ScanningDevices => show_scanning_screen(self, ctx),
         };
         if result.is_err() {
             println!("Error occured!")
@@ -56,67 +86,101 @@ impl eframe::App for EguiApp {
     }
 }
 
-fn show_some_screen(app: &mut EguiApp, ctx: &egui::Context) -> Result<()> {
+fn show_home_screen(app: &mut EguiApp, ctx: &egui::Context) -> Result<()> {
     egui::CentralPanel::default().show(ctx, |ui| -> Result<()> {
-        get_ui1(app, ui)?;
+        get_home_screen(app, ui)?;
         Ok(())
     });
     Ok(())
 }
 
-fn show_some_other_screen(app: &mut EguiApp, ctx: &egui::Context) -> Result<()> {
-    egui::CentralPanel::default().show(ctx, |ui| -> Result<()> {
-        get_ui2(app, ui)?;
-        Ok(())
-    });
-    Ok(())
+use rusb::{Device, DeviceList, UsbContext};
+
+pub fn list_usb_devices() -> rusb::Result<String> {
+    // 1. Initialize a mutable String to collect all output.
+    let mut output = String::new();
+
+    let context = rusb::Context::new()?;
+    let devices: DeviceList<rusb::Context> = context.devices()?;
+
+    // 2. Use format! (or writeln! with a separate String buffer) instead of println!
+    let header = format!("🔎 Found {} USB Devices:\n", devices.len());
+    output.push_str(&header);
+
+    // Iterate over the devices
+    for device in devices.iter() {
+        let device_desc = device.device_descriptor()?;
+
+        // 3. Use format! to create the line string
+        let line = format!(
+            "  - Bus {:03} Address {:03} | ID {:04x}:{:04x}\n",
+            device.bus_number(),
+            device.address(),
+            device_desc.vendor_id(),
+            device_desc.product_id()
+        );
+
+        // 4. Append the formatted line to the output String
+        output.push_str(&line);
+    }
+
+    // 5. Return the collected String wrapped in Ok() on success.
+    // The error type is automatically inferred as rusb::Error based on the '?' operator.
+    Ok(output)
 }
 
-fn get_ui1(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
-    ui.heading(
-        RichText::new("My Rust App")
-            .size(HEADING_FONT_SIZE)
-            .strong(),
-    );
-    ui.add_space(BIGGER_SPACING_SIZE);
-    ui.label(
-        RichText::new("State1 in Green".to_string())
-            .size(LABEL_FONT_SIZE)
-            .color(Color32::GREEN),
-    );
-    ui.add_space(SMALLER_SPACING_SIZE);
-    if ui
-        .add(Button::new(
-            RichText::new("Button to switch states").size(BUTTON_SIZE),
-        ))
-        .clicked()
-    {
-        app.change_state(AppState::SomeOtherState);
+fn list_serial_ports() -> serialport::Result<()> {
+    let ports = serialport::available_ports()?;
+
+    println!("📡 Found {} Serial Ports:", ports.len());
+
+    for p in ports {
+        println!("  - Port Name: {}", p.port_name);
+
+        // You can check the port type to see if it's USB/Bluetooth, etc.
+        match p.port_type {
+            serialport::SerialPortType::UsbPort(usb) => {
+                println!("    > USB VID/PID: {:04x}:{:04x}", usb.vid, usb.pid);
+            }
+            _ => {}
+        }
     }
     Ok(())
 }
 
-fn get_ui2(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
-    ui.heading(
-        RichText::new("My Rust App")
-            .size(HEADING_FONT_SIZE)
-            .strong(),
-    );
+fn get_home_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
+    ui.heading(RichText::new(APP_NAME).size(HEADING_FONT_SIZE).strong());
     ui.add_space(BIGGER_SPACING_SIZE);
     ui.label(
-        RichText::new("State2 in yellow".to_string())
+        RichText::new("Scanning devices ...".to_string())
             .size(LABEL_FONT_SIZE)
             .color(Color32::YELLOW),
     );
     ui.add_space(SMALLER_SPACING_SIZE);
 
     if ui
-        .add(Button::new(
-            RichText::new("Button to switch states").size(BUTTON_SIZE),
-        ))
+        .add(Button::new(RichText::new("Scan devices").size(BUTTON_SIZE)))
         .clicked()
     {
-        app.change_state(AppState::SomeState);
+        thread::spawn(|| {
+            scan_devices();
+        });
     }
+
+    // 1. Lock the Mutex to read the shared String
+    let current_output = DEVICE_SCAN_OUTPUT.lock();
+
+    // 2. Get a reference to the String data
+    let display_text: &str = current_output.as_str();
+
+    // 3. Display the text in a multi-line, read-only text box
+    let mut binding = display_text.to_owned();
+    let text_box = TextEdit::multiline(&mut binding) // Use .to_owned() for TextEdit
+        .desired_rows(10)
+        .frame(true)
+        .interactive(false); // Make it read-only
+
+    ui.add_sized([ui.available_width(), 200.0], text_box);
+
     Ok(())
 }
