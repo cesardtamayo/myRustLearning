@@ -1,16 +1,15 @@
 use anyhow::Result;
 use eframe::egui;
-use egui::{Button, Color32, RichText, TextEdit, Ui};
+use egui::{Button, Color32, RichText, TextBuffer, TextEdit, Ui};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use serialport::{self, SerialPort, SerialPortInfo};
-use std::thread;
-
-use std::io::{self, BufRead, BufReader, Read, Write}; // Need BufReader and BufRead for read_until
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::thread; // Need BufReader and BufRead for read_until
 
 use std::time::Duration; // Need to import Read trait for the read_exact method
 
-const PORT_NAME: &str = "/dev/cu.usbserial-0001"; // Your device's port
+// const PORT_NAME: &str = "/dev/cu.usbserial-0001"; // Your device's port
 const BAUD_RATE: u32 = 115200;
 const SERIAL_TIMEOUT_MS: u64 = 3000;
 
@@ -29,21 +28,12 @@ pub fn send_and_receive_serial_message(
     mut port: Box<dyn SerialPort>,
     message: &str,
 ) -> serialport::Result<String> {
-    // --- 1. PREPARE AND SEND THE MESSAGE ---
-
     // Use format! to include common command terminators (\r\n)
     let message_with_terminator = format!("{}\r\n", message);
     let bytes_to_send = message_with_terminator.as_bytes();
 
     println!("Attempting to send: '{}'", message);
-
-    // Write the byte slice to the serial port
     port.write(bytes_to_send)?;
-
-    // --- 2. WAIT FOR AND READ THE RESPONSE ---
-
-    // Initialize a buffer to hold the incoming bytes.
-    // let mut read_buffer: Vec<u8> = vec![0; MAX_RESPONSE_SIZE];
 
     let mut reader = BufReader::new(&mut port);
     let mut read_buffer: Vec<u8> = Vec::new();
@@ -65,23 +55,8 @@ pub fn send_and_receive_serial_message(
             ));
         }
     };
-    // let bytes_read = match port.read(&mut read_buffer) {
-    //     Ok(t) => t,
-    //     Err(e) => {
-    //         return Err(serialport::Error::new(
-    //             // 1. Use the 'Io' variant from the serialport crate
-    //             serialport::ErrorKind::Io(
-    //                 // 2. Pass the correct standard library error kind
-    //                 io::ErrorKind::InvalidData,
-    //             ),
-    //             format!("Error reading response: {}", e),
-    //         ));
-    //     }
-    // };
 
     println!("Received {} bytes in response.", bytes_read);
-
-    // --- 3. CONVERT BYTES TO STRING ---
 
     // Convert the received bytes (up to bytes_read) into a UTF-8 String.
     let received_bytes = &read_buffer[..bytes_read];
@@ -132,6 +107,21 @@ pub fn scan_devices() {
     println!("Device scan completed");
 }
 
+pub fn send_serial_command(port_name: &str, message_to_send: &str) {
+    // let message_to_send = "m ver";
+    match open_serial_port(port_name, BAUD_RATE) {
+        Ok(serial_port) => {
+            let serial_response =
+                match send_and_receive_serial_message(serial_port, message_to_send) {
+                    Ok(response) => response,
+                    Err(err) => format!("Error: {}", err),
+                };
+            println!("Serial Response: {}", serial_response);
+        }
+        Err(err) => println!("Error opening serial port: {}", err),
+    }
+}
+
 /*
  *
  * Find connected taser 10 by sending "m_ver" to all connected devices.
@@ -151,12 +141,14 @@ const SMALLER_SPACING_SIZE: f32 = 5.0;
 #[derive(Default)]
 struct EguiApp {
     state: AppState,
+    serial_port_name: String,
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
 enum AppState {
     #[default]
-    InitialState,
+    DeviceScanState,
+    // SerialComState,
 }
 
 pub fn list_available_serial_ports() -> Result<Vec<String>, String> {
@@ -189,29 +181,17 @@ pub fn list_available_serial_ports() -> Result<Vec<String>, String> {
 }
 
 fn main() {
-    // let options = eframe::NativeOptions {
-    //     viewport: egui::ViewportBuilder::default()
-    //         .with_inner_size(egui::vec2(WINDOW_WIDTH, WINDOW_HEIGHT)),
-    //     ..Default::default()
-    // };
-    // eframe::run_native(
-    //     APP_NAME,
-    //     options,
-    //     Box::new(|cc| Ok(Box::new(EguiApp::new(cc)))),
-    // )
-    // .expect("Failed to app");
-    let message_to_send = "m ver";
-    match open_serial_port(PORT_NAME, BAUD_RATE) {
-        Ok(serial_port) => {
-            let serial_response =
-                match send_and_receive_serial_message(serial_port, message_to_send) {
-                    Ok(response) => response,
-                    Err(err) => format!("Error: {}", err),
-                };
-            println!("Serial Response: {}", serial_response);
-        }
-        Err(err) => println!("Error opening serial port: {}", err),
-    }
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size(egui::vec2(WINDOW_WIDTH, WINDOW_HEIGHT)),
+        ..Default::default()
+    };
+    eframe::run_native(
+        APP_NAME,
+        options,
+        Box::new(|cc| Ok(Box::new(EguiApp::new(cc)))),
+    )
+    .expect("Failed to app");
 }
 
 impl EguiApp {
@@ -225,8 +205,8 @@ impl EguiApp {
 impl eframe::App for EguiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let result = match self.state {
-            AppState::InitialState => show_home_screen(self, ctx),
-            // AppState::ScanningDevices => show_scanning_screen(self, ctx),
+            AppState::DeviceScanState => show_devScan_screen(self, ctx),
+            AppState::SerialComState => show_serialCom_screen(self, ctx),
         };
         if result.is_err() {
             println!("Error occured!")
@@ -234,15 +214,23 @@ impl eframe::App for EguiApp {
     }
 }
 
-fn show_home_screen(app: &mut EguiApp, ctx: &egui::Context) -> Result<()> {
+fn show_devScan_screen(app: &mut EguiApp, ctx: &egui::Context) -> Result<()> {
     egui::CentralPanel::default().show(ctx, |ui| -> Result<()> {
-        get_home_screen(app, ui)?;
+        get_devScan_screen(app, ui)?;
         Ok(())
     });
     Ok(())
 }
 
-fn get_home_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
+// fn show_serialCom_screen(app: &mut EguiApp, ctx: &egui::Context) -> Result<()> {
+//     egui::CentralPanel::default().show(ctx, |ui| -> Result<()> {
+//         get_serialCom_screen(app, ui)?;
+//         Ok(())
+//     });
+//     Ok(())
+// }
+
+fn get_devScan_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
     ui.heading(RichText::new(APP_NAME).size(HEADING_FONT_SIZE).strong());
     ui.add_space(BIGGER_SPACING_SIZE);
     ui.label(
@@ -276,40 +264,60 @@ fn get_home_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
 
     ui.add_sized([ui.available_width(), 200.0], text_box);
 
+    ui.add_space(SMALLER_SPACING_SIZE);
+    // let serial_device_buffer: &mut dyn TextBuffer = "<Enter serial device here>";
+    ui.add_sized(
+        [ui.available_width(), 200.0],
+        TextEdit::singleline(&mut app.serial_port_name),
+    );
+    if ui
+        .add(Button::new(
+            RichText::new("Send Serial Command to device").size(BUTTON_SIZE),
+        ))
+        .clicked()
+    {
+        println!("Sending serial command to {}", app.serial_port_name);
+        let port_name_clone = app.serial_port_name.clone();
+        thread::spawn(move || {
+            send_serial_command(&port_name_clone, "m ver");
+        });
+    }
     Ok(())
 }
 
-// use rusb::{Device, DeviceList, UsbContext};
+// fn get_serialCom_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
+//     ui.heading(RichText::new(APP_NAME).size(HEADING_FONT_SIZE).strong());
+//     ui.add_space(BIGGER_SPACING_SIZE);
+//     ui.label(
+//         RichText::new("Scanning devices ...".to_string())
+//             .size(LABEL_FONT_SIZE)
+//             .color(Color32::YELLOW),
+//     );
+//     ui.add_space(SMALLER_SPACING_SIZE);
 
-// pub fn list_usb_devices() -> rusb::Result<String> {
-//     // 1. Initialize a mutable String to collect all output.
-//     let mut output = String::new();
-
-//     let context = rusb::Context::new()?;
-//     let devices: DeviceList<rusb::Context> = context.devices()?;
-
-//     // 2. Use format! (or writeln! with a separate String buffer) instead of println!
-//     let header = format!("🔎 Found {} USB Devices:\n", devices.len());
-//     output.push_str(&header);
-
-//     // Iterate over the devices
-//     for device in devices.iter() {
-//         let device_desc = device.device_descriptor()?;
-
-//         // 3. Use format! to create the line string
-//         let line = format!(
-//             "  - Bus {:03} Address {:03} | ID {:04x}:{:04x}\n",
-//             device.bus_number(),
-//             device.address(),
-//             device_desc.vendor_id(),
-//             device_desc.product_id()
-//         );
-
-//         // 4. Append the formatted line to the output String
-//         output.push_str(&line);
+//     if ui
+//         .add(Button::new(RichText::new("Scan devices").size(BUTTON_SIZE)))
+//         .clicked()
+//     {
+//         thread::spawn(|| {
+//             scan_devices();
+//         });
 //     }
 
-//     // 5. Return the collected String wrapped in Ok() on success.
-//     // The error type is automatically inferred as rusb::Error based on the '?' operator.
-//     Ok(output)
+//     // 1. Lock the Mutex to read the shared String
+//     let current_output = DEVICE_SCAN_OUTPUT.lock();
+
+//     // 2. Get a reference to the String data
+//     let display_text: &str = current_output.as_str();
+
+//     // 3. Display the text in a multi-line, read-only text box
+//     let mut binding = display_text.to_owned();
+//     let text_box = TextEdit::multiline(&mut binding) // Use .to_owned() for TextEdit
+//         .desired_rows(10)
+//         .frame(true)
+//         .interactive(false); // Make it read-only
+
+//     ui.add_sized([ui.available_width(), 200.0], text_box);
+
+//     Ok(())
 // }
