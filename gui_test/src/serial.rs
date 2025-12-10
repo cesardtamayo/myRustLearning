@@ -196,38 +196,17 @@ pub fn find_t10(
     }
 }
 
-// Assume this function runs your device scanning logic
-pub fn scan_devices() {
-    // 1. Placeholder for your actual slow scan logic
-    let mut results: String = String::new();
-    match list_available_serial_ports() {
-        Ok(port_list) => {
-            results.push_str("Available Serial Ports:\n");
-            for port in port_list {
-                results.push_str(&format!("- {}\n", port));
-            }
-        }
-        Err(e) => eprintln!("Error: {}", e),
-    }
-    // let results: String = list_usb_devices().expect("Failed to scan devices");
-
-    // 2. Lock and update the shared static variable
-    // let mut data = crate::DEVICE_SCAN_OUTPUT.lock();
-    // *data = results;
-
-    // The lock is released automatically here
-    println!("Device scan completed");
-}
-
 pub fn send_serial_command(
-    port_name: &str,
+    port_name: Arc<Mutex<String>>,
     message_to_send: &str,
     serial_response: Arc<Mutex<String>>,
 ) {
-    println!("Sending {} to {}.", message_to_send, port_name);
-    match open_serial_port(port_name, BAUD_RATE) {
+    let port_name_clone = port_name.lock().clone();
+    // let port_name_clone = *port_guard;
+    println!("Sending '{}' to {}.", message_to_send, port_name_clone);
+    match open_serial_port(&port_name_clone, BAUD_RATE) {
         Ok(serial_port) => {
-            println!("Serial Port opened");
+            // println!("Serial Port opened");
             let result = match send_and_receive_serial_message(serial_port, message_to_send) {
                 Ok(response) => response,
                 Err(err) => format!("Error: {}", err),

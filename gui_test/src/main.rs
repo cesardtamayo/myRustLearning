@@ -127,6 +127,7 @@ fn get_dev_scan_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
             }
             ctx_clone.request_repaint();
         });
+        // ui.ctx().request_repaint();
     }
 
     Ok(())
@@ -181,12 +182,14 @@ fn get_serial_com_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
         .clicked()
     {
         println!("Getting FW version ...");
-        // let port_name_clone = app.get_port_name();
-        // let serial_response_clone = app.serial_response.clone();
-
-        // thread::spawn(move || {
-        //     send_serial_command(&port_name_clone, "m ver", serial_response_clone);
-        // });
+        let port_name_clone = app.port_name.clone();
+        let serial_response_clone = app.serial_response.clone();
+        let ctx_clone = ui.ctx().clone();
+        // println!("spawning thread ...");
+        thread::spawn(move || {
+            send_serial_command(port_name_clone, "m ver", serial_response_clone);
+            ctx_clone.request_repaint();
+        });
     }
 
     if ui
@@ -197,6 +200,13 @@ fn get_serial_com_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
     {
         println!("Getting hv version ...");
         // send_serial_command(&app.serial_response, "h v");
+        let port_name_clone = app.port_name.clone();
+        let serial_response_clone = app.serial_response.clone();
+        let ctx_clone = ui.ctx().clone();
+        thread::spawn(move || {
+            send_serial_command(port_name_clone, "h v", serial_response_clone);
+            ctx_clone.request_repaint();
+        });
     }
 
     // ui.add_space(SMALLER_SPACING_SIZE);
