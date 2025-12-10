@@ -154,6 +154,7 @@ fn get_serial_com_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
         [ui.available_width(), 20.0],
         TextEdit::singleline(current_port_name),
     );
+    drop(port_guard);
 
     ui.add_space(SMALLER_SPACING_SIZE);
     ui.label(
@@ -167,17 +168,18 @@ fn get_serial_com_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
         [ui.available_width(), 20.0],
         TextEdit::singleline(current_response),
     );
+    drop(response_guard);
 
     if ui
         .add(Button::new(RichText::new("Back").size(BUTTON_SIZE)))
         .clicked()
     {
-        // app.change_state(AppState::DeviceScanState);
+        app.change_state(AppState::DeviceScanState);
     }
 
     if ui
         .add(Button::new(
-            RichText::new("Get Firmware Version").size(BUTTON_SIZE),
+            RichText::new("Get FW Version").size(BUTTON_SIZE),
         ))
         .clicked()
     {
@@ -185,7 +187,6 @@ fn get_serial_com_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
         let port_name_clone = app.port_name.clone();
         let serial_response_clone = app.serial_response.clone();
         let ctx_clone = ui.ctx().clone();
-        // println!("spawning thread ...");
         thread::spawn(move || {
             send_serial_command(port_name_clone, "m ver", serial_response_clone);
             ctx_clone.request_repaint();
@@ -204,36 +205,27 @@ fn get_serial_com_screen(app: &mut EguiApp, ui: &mut Ui) -> Result<()> {
         let serial_response_clone = app.serial_response.clone();
         let ctx_clone = ui.ctx().clone();
         thread::spawn(move || {
-            send_serial_command(port_name_clone, "h v", serial_response_clone);
+            send_serial_command(port_name_clone, "h c", serial_response_clone);
             ctx_clone.request_repaint();
         });
     }
 
-    // ui.add_space(SMALLER_SPACING_SIZE);
-    // // let serial_device_buffer: &mut dyn TextBuffer = "<Enter serial device here>";
-    // ui.add_sized(
-    //     [ui.available_width(), 200.0],
-    //     TextEdit::singleline(&mut app.serial_response),
-    // );
-    // if ui
-    //     .add(Button::new(RichText::new("Scan").size(BUTTON_SIZE)))
-    //     .clicked()
-    // {}
-
-    // 1. Lock the Mutex to read the shared String
-    // let current_output = app.lock();
-
-    // // 2. Get a reference to the String data
-    // let display_text: &str = current_output.as_str();
-
-    // // 3. Display the text in a multi-line, read-only text box
-    // let mut binding = display_text.to_owned();
-    // let text_box = TextEdit::multiline(&mut binding) // Use .to_owned() for TextEdit
-    //     .desired_rows(10)
-    //     .frame(true)
-    //     .interactive(false); // Make it read-only
-
-    // ui.add_sized([ui.available_width(), 100.0], text_box);
+    if ui
+        .add(Button::new(
+            RichText::new("Get HV Active Bank").size(BUTTON_SIZE),
+        ))
+        .clicked()
+    {
+        println!("Getting hv active bank ...");
+        // send_serial_command(&app.serial_response, "h v");
+        let port_name_clone = app.port_name.clone();
+        let serial_response_clone = app.serial_response.clone();
+        let ctx_clone = ui.ctx().clone();
+        thread::spawn(move || {
+            send_serial_command(port_name_clone, "h 3", serial_response_clone);
+            ctx_clone.request_repaint();
+        });
+    }
 
     Ok(())
 }
